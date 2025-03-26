@@ -4,7 +4,7 @@ import { useCopyToClipboard } from 'usehooks-ts';
 
 import type { Vote } from '@/lib/db/schema';
 
-import { CopyIcon, ThumbDownIcon, ThumbUpIcon } from './icons';
+import { CopyIcon, ThumbDownIcon, ThumbUpIcon, SparklesIcon } from './icons';
 import { Button } from './ui/button';
 import {
   Tooltip,
@@ -21,11 +21,17 @@ export function PureMessageActions({
   message,
   vote,
   isLoading,
+  messages,
+  setMessages,
+  append,
 }: {
   chatId: string;
   message: Message;
   vote: Vote | undefined;
   isLoading: boolean;
+  messages: Message[];
+  setMessages: (messages: Message[]) => void;
+  append: (message: Message) => void;
 }) {
   const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
@@ -167,6 +173,114 @@ export function PureMessageActions({
             </Button>
           </TooltipTrigger>
           <TooltipContent>Downvote Response</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              data-testid="message-upgrade"
+              className="py-1 px-2 h-fit text-muted-foreground hover:text-primary hover:bg-primary/10 !pointer-events-auto"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  // Get message content from parts
+                  const textFromParts = message.parts
+                    ?.filter((part) => part.type === 'text')
+                    .map((part) => part.text)
+                    .join('\n')
+                    .trim();
+
+                  // Validate message content
+                  if (!textFromParts) {
+                    toast.error('No message content to upgrade');
+                    return;
+                  }
+
+                  toast.loading('Enhancing response...', {
+                    id: 'upgrade-toast',
+                  });
+
+                  try {
+                    // Simple fetch call
+                    const response = await fetch('/api/upgrade', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify({
+                        message: textFromParts,
+                      }),
+                    });
+
+                    // Log the response status and body
+                    console.log('Upgrade response status:', response.status);
+                    const responseBody = await response.clone().text();
+                    console.log('Upgrade response body:', responseBody);
+
+                    // Handle non-OK responses
+                    if (!response.ok) {
+                      toast.error(
+                        `Failed to enhance response: ${response.statusText}`,
+                        {
+                          id: 'upgrade-toast',
+                        },
+                      );
+                      return;
+                    }
+
+                    // Parse the response
+                    const data = await response.json();
+
+                    // Create a new message
+                    if (data.text) {
+                      const newMessage = {
+                        role: 'assistant' as const,
+                        content: data.text,
+                        id: crypto.randomUUID(),
+                        parts: [
+                          {
+                            type: 'text' as const,
+                            text: data.text,
+                          },
+                        ],
+                      };
+
+                      // Add to chat
+                      if (typeof append === 'function') {
+                        append(newMessage);
+                      } else if (
+                        typeof setMessages === 'function' &&
+                        Array.isArray(messages)
+                      ) {
+                        setMessages([...messages, newMessage]);
+                      }
+
+                      toast.success('Enhanced response added!', {
+                        id: 'upgrade-toast',
+                      });
+                    } else {
+                      toast.error('No enhanced text received', {
+                        id: 'upgrade-toast',
+                      });
+                    }
+                  } catch (error) {
+                    console.error('Error in upgrade process:', error);
+                    toast.error('Failed to process upgrade', {
+                      id: 'upgrade-toast',
+                    });
+                  }
+                } catch (error) {
+                  console.error('Upgrade button error:', error);
+                  toast.error('Error initializing upgrade', {
+                    id: 'upgrade-toast',
+                  });
+                }
+              }}
+            >
+              <SparklesIcon />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Upgrade Response</TooltipContent>
         </Tooltip>
       </div>
     </TooltipProvider>

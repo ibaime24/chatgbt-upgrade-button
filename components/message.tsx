@@ -18,7 +18,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
 import { MessageEditor } from './message-editor';
 import { DocumentPreview } from './document-preview';
 import { MessageReasoning } from './message-reasoning';
-import { UseChatHelpers } from '@ai-sdk/react';
+import type { UseChatHelpers } from '@ai-sdk/react';
 
 const PurePreviewMessage = ({
   chatId,
@@ -28,6 +28,8 @@ const PurePreviewMessage = ({
   setMessages,
   reload,
   isReadonly,
+  messages,
+  append,
 }: {
   chatId: string;
   message: UIMessage;
@@ -36,6 +38,8 @@ const PurePreviewMessage = ({
   setMessages: UseChatHelpers['setMessages'];
   reload: UseChatHelpers['reload'];
   isReadonly: boolean;
+  messages: UIMessage[];
+  append: UseChatHelpers['append'];
 }) => {
   const [mode, setMode] = useState<'view' | 'edit'>('view');
 
@@ -125,6 +129,17 @@ const PurePreviewMessage = ({
                       >
                         <Markdown>{part.text}</Markdown>
                       </div>
+                      {!isReadonly && message.role === 'assistant' && (
+                        <MessageActions
+                          chatId={chatId}
+                          message={message}
+                          vote={vote}
+                          isLoading={isLoading}
+                          messages={messages}
+                          setMessages={setMessages}
+                          append={append}
+                        />
+                      )}
                     </div>
                   );
                 }
@@ -213,16 +228,6 @@ const PurePreviewMessage = ({
                 }
               }
             })}
-
-            {!isReadonly && (
-              <MessageActions
-                key={`action-${message.id}`}
-                chatId={chatId}
-                message={message}
-                vote={vote}
-                isLoading={isLoading}
-              />
-            )}
           </div>
         </div>
       </motion.div>
