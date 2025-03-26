@@ -79,6 +79,7 @@ export function Chat({
           messages={messages}
           setMessages={setMessages}
           reload={reload}
+          append={append}
           isReadonly={isReadonly}
           isArtifactVisible={isArtifactVisible}
         />

@@ -1,5 +1,5 @@
+import type { UIMessage } from 'ai';
 import {
-  UIMessage,
   appendResponseMessages,
   createDataStreamResponse,
   smoothStream,
@@ -30,26 +30,39 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    const {
-      id,
-      messages,
-      selectedChatModel,
-    }: {
-      id: string;
-      messages: Array<UIMessage>;
-      selectedChatModel: string;
-    } = await request.json();
-
     const session = await auth();
+    const body = await request.json();
+    const { messages, id } = body;
+
+    const userMessage = messages[messages.length - 1];
+    const messageContent = userMessage.content;
+
+    // Check if this is an upgrade request
+    const isUpgradeRequest = messageContent.startsWith(
+      'Please enhance this response with more details and examples:',
+    );
+
+    console.log('API route called, is upgrade request:', isUpgradeRequest);
+    console.log('Last message content:', messageContent.substring(0, 100));
+
+    // Set the appropriate system prompt and model based on the request type
+    const selectedChatModel = messages.some((message: UIMessage) =>
+      message.content.toLowerCase().includes('reason'),
+    )
+      ? 'chat-model-reasoning'
+      : 'chat-model';
+
+    const currentSystemPrompt = isUpgradeRequest
+      ? 'We are creating an optimized prompt to give to an LLM for the best possible output. Here are your instructions: 1. break this prompt down into step-by-step instructions for detailed processing 2. be clear and concise 3. be conversational and use natural language 4.  include a lot of detail, but do not make up information or over-confuse the AI 5. include what NOT to do 6. adopt a relevant persona when writing, but do not include details about your persona in the output. Also do not include your own details about the creation of this prompt, as the result will go directly to the user'
+      : systemPrompt({ selectedChatModel });
+
+    console.log(
+      'Using system prompt for:',
+      isUpgradeRequest ? 'upgrade' : 'normal chat',
+    );
 
     if (!session || !session.user || !session.user.id) {
       return new Response('Unauthorized', { status: 401 });
-    }
-
-    const userMessage = getMostRecentUserMessage(messages);
-
-    if (!userMessage) {
-      return new Response('No user message found', { status: 400 });
     }
 
     const chat = await getChatById({ id });
@@ -83,7 +96,7 @@ export async function POST(request: Request) {
       execute: (dataStream) => {
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({ selectedChatModel }),
+          system: currentSystemPrompt,
           messages,
           maxSteps: 5,
           experimental_activeTools:

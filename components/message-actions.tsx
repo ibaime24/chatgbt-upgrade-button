@@ -24,6 +24,7 @@ export function PureMessageActions({
   messages,
   setMessages,
   append,
+  reload,
 }: {
   chatId: string;
   message: Message;
@@ -32,6 +33,7 @@ export function PureMessageActions({
   messages: Message[];
   setMessages: (messages: Message[]) => void;
   append: (message: Message) => void;
+  reload?: () => void;
 }) {
   const { mutate } = useSWRConfig();
   const [_, copyToClipboard] = useCopyToClipboard();
@@ -183,6 +185,8 @@ export function PureMessageActions({
               variant="outline"
               onClick={async () => {
                 try {
+                  console.log('Upgrade button clicked');
+
                   // Get message content from parts
                   const textFromParts = message.parts
                     ?.filter((part) => part.type === 'text')
@@ -190,90 +194,82 @@ export function PureMessageActions({
                     .join('\n')
                     .trim();
 
-                  // Validate message content
+                  console.log(
+                    'Text content:',
+                    textFromParts
+                      ? `${textFromParts.substring(0, 50)}...`
+                      : 'none',
+                  );
+
                   if (!textFromParts) {
                     toast.error('No message content to upgrade');
                     return;
                   }
 
-                  toast.loading('Enhancing response...', {
-                    id: 'upgrade-toast',
-                  });
+                  // Create a user message with upgrade request
+                  const userMessage: Message = {
+                    role: 'user' as const,
+                    content: `Please enhance this response with more details and examples:\n\n${textFromParts}`,
+                    id: crypto.randomUUID(),
+                  };
 
-                  try {
-                    // Simple fetch call
-                    const response = await fetch('/api/upgrade', {
-                      method: 'POST',
-                      headers: {
-                        'Content-Type': 'application/json',
-                      },
-                      body: JSON.stringify({
-                        message: textFromParts,
-                      }),
-                    });
+                  // First try the normal approach
+                  if (typeof append === 'function') {
+                    console.log('Using append function');
+                    await append(userMessage);
 
-                    // Log the response status and body
-                    console.log('Upgrade response status:', response.status);
-                    const responseBody = await response.clone().text();
-                    console.log('Upgrade response body:', responseBody);
-
-                    // Handle non-OK responses
-                    if (!response.ok) {
-                      toast.error(
-                        `Failed to enhance response: ${response.statusText}`,
-                        {
-                          id: 'upgrade-toast',
-                        },
-                      );
-                      return;
-                    }
-
-                    // Parse the response
-                    const data = await response.json();
-
-                    // Create a new message
-                    if (data.text) {
-                      const newMessage = {
-                        role: 'assistant' as const,
-                        content: data.text,
-                        id: crypto.randomUUID(),
-                        parts: [
-                          {
-                            type: 'text' as const,
-                            text: data.text,
-                          },
-                        ],
-                      };
-
-                      // Add to chat
-                      if (typeof append === 'function') {
-                        append(newMessage);
-                      } else if (
-                        typeof setMessages === 'function' &&
-                        Array.isArray(messages)
-                      ) {
-                        setMessages([...messages, newMessage]);
-                      }
-
-                      toast.success('Enhanced response added!', {
-                        id: 'upgrade-toast',
-                      });
+                    // Force the client to trigger the server route call
+                    if (typeof reload === 'function') {
+                      console.log('Calling reload function');
+                      reload();
+                      console.log('Reload function called');
                     } else {
-                      toast.error('No enhanced text received', {
-                        id: 'upgrade-toast',
-                      });
+                      console.error('Reload function is not available');
+
+                      // Alternative approach: Make a direct API call
+                      console.log('Trying direct API call as fallback');
+                      try {
+                        const newMessages = [...messages, userMessage];
+                        const response = await fetch('/api/chat', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            messages: newMessages,
+                            id: chatId,
+                          }),
+                        });
+
+                        if (response.ok) {
+                          console.log('Direct API call successful');
+                          if (typeof setMessages === 'function') {
+                            setMessages(newMessages);
+                          }
+                        } else {
+                          console.error(
+                            'Direct API call failed:',
+                            response.status,
+                          );
+                        }
+                      } catch (apiError) {
+                        console.error('API call error:', apiError);
+                      }
                     }
-                  } catch (error) {
-                    console.error('Error in upgrade process:', error);
-                    toast.error('Failed to process upgrade', {
-                      id: 'upgrade-toast',
-                    });
+                  } else if (
+                    typeof setMessages === 'function' &&
+                    Array.isArray(messages)
+                  ) {
+                    console.log('Using setMessages function');
+                    setMessages([...messages, userMessage]);
+                  } else {
+                    console.error(
+                      'Neither append nor setMessages is available',
+                    );
                   }
                 } catch (error) {
                   console.error('Upgrade button error:', error);
-                  toast.error('Error initializing upgrade', {
-                    id: 'upgrade-toast',
-                  });
+                  toast.error('Failed to trigger upgrade');
                 }
               }}
             >

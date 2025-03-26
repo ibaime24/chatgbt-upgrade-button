@@ -138,6 +138,7 @@ const PurePreviewMessage = ({
                           messages={messages}
                           setMessages={setMessages}
                           append={append}
+                          reload={reload}
                         />
                       )}
                     </div>
