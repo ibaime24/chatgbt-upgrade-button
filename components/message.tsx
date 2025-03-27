@@ -125,9 +125,23 @@ const PurePreviewMessage = ({
                         className={cn('flex flex-col gap-4', {
                           'bg-primary text-primary-foreground px-3 py-2 rounded-xl':
                             message.role === 'user',
+                          'white-shadow border border-gray-300/50 bg-primary text-primary-foreground px-3 py-2 rounded-xl':
+                            message.role === 'user' &&
+                            message.content?.includes(
+                              'Please enhance this response with more details and examples:',
+                            ),
                         })}
                       >
-                        <Markdown>{part.text}</Markdown>
+                        <Markdown>
+                          {message.role === 'user' &&
+                          message.content?.includes(
+                            'Please enhance this response with more details and examples:',
+                          )
+                            ? messages
+                                .filter((m) => m.role === 'user')
+                                .slice(-2)[0]?.content || part.text
+                            : part.text}
+                        </Markdown>
                       </div>
                       {!isReadonly && message.role === 'assistant' && (
                         <MessageActions
