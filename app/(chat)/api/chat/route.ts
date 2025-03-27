@@ -38,7 +38,7 @@ export async function POST(request: Request) {
     const messageContent = userMessage.content;
 
     // Check if this is an upgrade request
-    const isUpgradeRequest = messageContent.startsWith(
+    const isUpgradeRequest = messageContent.includes(
       'Please enhance this response with more details and examples:',
     );
 
@@ -60,6 +60,7 @@ export async function POST(request: Request) {
       'Using system prompt for:',
       isUpgradeRequest ? 'upgrade' : 'normal chat',
     );
+    console.log('System prompt:', currentSystemPrompt);
 
     if (!session || !session.user || !session.user.id) {
       return new Response('Unauthorized', { status: 401 });
@@ -122,36 +123,104 @@ export async function POST(request: Request) {
           onFinish: async ({ response }) => {
             if (session.user?.id) {
               try {
-                const assistantId = getTrailingMessageId({
-                  messages: response.messages.filter(
-                    (message) => message.role === 'assistant',
-                  ),
+                console.log('Improved prompt:', response.messages);
+
+                // Extract the text content from the last assistant message
+                const lastAssistantMessage = response.messages
+                  .filter((msg) => msg.role === 'assistant')
+                  .pop();
+
+                // Get the improved prompt from the assistant's response
+                const improvedPrompt =
+                  lastAssistantMessage?.content ||
+                  systemPrompt({ selectedChatModel });
+
+                console.log(
+                  'Using improved prompt for second API call:',
+                  improvedPrompt,
+                );
+
+                // Now make the second API call with the improved prompt
+                const enhancedResult = await streamText({
+                  model: myProvider.languageModel(selectedChatModel),
+                  system: improvedPrompt,
+                  messages: messages.slice(0, -1), // Original messages without the upgrade request
+                  maxSteps: 5,
+                  experimental_activeTools:
+                    selectedChatModel === 'chat-model-reasoning'
+                      ? []
+                      : [
+                          'getWeather',
+                          'createDocument',
+                          'updateDocument',
+                          'requestSuggestions',
+                        ],
+                  experimental_transform: smoothStream({ chunking: 'word' }),
+                  experimental_generateMessageId: generateUUID,
+                  tools: {
+                    getWeather,
+                    createDocument: createDocument({ session, dataStream }),
+                    updateDocument: updateDocument({ session, dataStream }),
+                    requestSuggestions: requestSuggestions({
+                      session,
+                      dataStream,
+                    }),
+                  },
+                  onFinish: async ({ response: finalResponse }) => {
+                    console.log(
+                      'Final enhanced response:',
+                      finalResponse.messages,
+                    );
+                    // Save the final response
+                    if (session.user?.id) {
+                      try {
+                        console.log(
+                          'Final processed response:',
+                          finalResponse.messages,
+                        );
+                        const assistantId = getTrailingMessageId({
+                          messages: finalResponse.messages.filter(
+                            (message) => message.role === 'assistant',
+                          ),
+                        });
+
+                        if (!assistantId) {
+                          throw new Error('No assistant message found!');
+                        }
+
+                        const [, assistantMessage] = appendResponseMessages({
+                          messages: [userMessage],
+                          responseMessages: finalResponse.messages,
+                        });
+
+                        await saveMessages({
+                          messages: [
+                            {
+                              id: assistantId,
+                              chatId: id,
+                              role: assistantMessage.role,
+                              parts: assistantMessage.parts,
+                              attachments:
+                                assistantMessage.experimental_attachments ?? [],
+                              createdAt: new Date(),
+                            },
+                          ],
+                        });
+                      } catch (_) {
+                        console.error('Failed to save chat');
+                      }
+                    }
+                  },
+                  experimental_telemetry: {
+                    isEnabled: isProductionEnvironment,
+                    functionId: 'stream-text',
+                  },
                 });
 
-                if (!assistantId) {
-                  throw new Error('No assistant message found!');
-                }
-
-                const [, assistantMessage] = appendResponseMessages({
-                  messages: [userMessage],
-                  responseMessages: response.messages,
-                });
-
-                await saveMessages({
-                  messages: [
-                    {
-                      id: assistantId,
-                      chatId: id,
-                      role: assistantMessage.role,
-                      parts: assistantMessage.parts,
-                      attachments:
-                        assistantMessage.experimental_attachments ?? [],
-                      createdAt: new Date(),
-                    },
-                  ],
-                });
+                enhancedResult.consumeStream();
+                enhancedResult.mergeIntoDataStream(dataStream);
               } catch (_) {
-                console.error('Failed to save chat');
+                console.error('Failed to process upgrade');
               }
             }
           },
