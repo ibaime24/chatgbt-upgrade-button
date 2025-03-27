@@ -20,29 +20,27 @@ export const Overview = () => {
           <MessageIcon size={32} />
         </p>
         <p>
-          This is an{' '}
+          This is a chatbot designed to showcase the 'Upgrade' feature. After
+          receiving a response, click on the "Upgrade" button next to the
+          response to get a better, improved answer of your original request.
+          The core of this chatbot uses{' '}
           <Link
             className="font-medium underline underline-offset-4"
             href="https://github.com/vercel/ai-chatbot"
             target="_blank"
           >
-            open source
+            Vercel's Chatbot
           </Link>{' '}
-          chatbot template built with Next.js and the AI SDK by Vercel. It uses
-          the{' '}
-          <code className="rounded-md bg-muted px-1 py-0.5">streamText</code>{' '}
-          function in the server and the{' '}
-          <code className="rounded-md bg-muted px-1 py-0.5">useChat</code> hook
-          on the client to create a seamless chat experience.
+          template{' '}
         </p>
         <p>
-          You can learn more about the AI SDK by visiting the{' '}
+          You can see more projects of mine at{' '}
           <Link
             className="font-medium underline underline-offset-4"
-            href="https://sdk.vercel.ai/docs"
+            href="https://www.ianbaime.com/"
             target="_blank"
           >
-            docs
+            my portfolio
           </Link>
           .
         </p>

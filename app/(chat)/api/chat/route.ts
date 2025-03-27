@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       : 'chat-model';
 
     const currentSystemPrompt = isUpgradeRequest
-      ? 'We are creating an optimized prompt to give to an LLM for the best possible output. Here are your instructions: 1. break this prompt down into step-by-step instructions for detailed processing 2. be clear and concise 3. be conversational and use natural language 4.  include a lot of detail, but do not make up information or over-confuse the AI 5. include what NOT to do 6. adopt a relevant persona when writing, but do not include details about your persona in the output. Also do not include your own details about the creation of this prompt, as the result will go directly to the user'
+      ? 'We are creating an optimized prompt to give to an LLM for the best possible output. Here are your instructions: 1. break this answer down into step-by-step instructions for detailed processing 2. be clear and concise 3. be conversational and use natural language 4.  include a lot of detail, but do not make up information or over-confuse the AI 5. include what NOT to do 6. adopt a relevant persona when writing, but do not include details about your persona in the output. Go into extreme detail, be step-by-step in your explanations and instructions, and understand that you must be as good as possible as the user has already deemed the previous request not good enough'
       : systemPrompt({ selectedChatModel });
 
     console.log(
